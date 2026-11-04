@@ -14,6 +14,9 @@ iot-flow-service/flow.json
 iot-flow-service/server.log
 node_modules/
 
+# 本地打包分发目录（APK 走 Releases，不入库）
+dist/
+
 # 编辑器 / 系统
 .vscode/
 .idea/
