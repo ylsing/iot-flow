@@ -1,0 +1,21 @@
+# 构建产物
+iot-flow-app/build/
+*.apk
+*.idsig
+*.class
+
+# 签名文件（务必本地保管，不要入库）
+*.keystore
+*.jks
+
+# 本地配置与运行时缓存（含卡号/验证码，不入库）
+iot-flow-service/config.json
+iot-flow-service/flow.json
+iot-flow-service/server.log
+node_modules/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

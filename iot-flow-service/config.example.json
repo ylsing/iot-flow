@@ -1,0 +1,7 @@
+{
+  "port": 8080,
+  "card": "90184999",
+  "verify": "0000",
+  "intervalMinutes": 30,
+  "days": 7
+}

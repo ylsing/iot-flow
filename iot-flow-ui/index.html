@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#0A0D12" />
+<meta name="color-scheme" content="dark" />
+<meta name="description" content="物联网卡流量查询" />
+<title>流量 · 90154379</title>
+<style>
+/* ============================================================
+   1. 设计令牌（改配色只改这里）
+   ============================================================ */
+:root{
+  --bg:#0A0D12;              /* 墨蓝黑底 */
+  --card:#12171F;            /* 卡片面 */
+  --line:rgba(255,255,255,.07);
+  --line-2:rgba(255,255,255,.13);
+  --t1:#F3F6FA;              /* 主文字 13.9:1 */
+  --t2:#A9B4C4;              /* 次文字 8.2:1 */
+  --t3:#7B8798;              /* 辅助文字 5.3:1 */
+  --accent:#34E0A1;          /* 唯一强调色 薄荷绿 */
+  --accent-weak:rgba(52,224,161,.13);
+  --warn:#F5A524;            /* 语义色：告警 */
+  --danger:#FF6B6B;          /* 语义色：错误 */
+
+  --r-card:20px;
+  --pad:16px;
+  --gap:10px;
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  min-height:100vh;
+  min-height:100dvh;
+  background:
+    radial-gradient(130% 55% at 50% -12%, rgba(52,224,161,.10), rgba(52,224,161,0) 62%),
+    var(--bg);
+  color:var(--t1);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","HarmonyOS Sans SC","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;
+  font-size:16px;
+  line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+}
+[hidden]{display:none !important}
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:10px}
+
+/* ============================================================
+   2. 布局骨架：单列，480 上限，安全区
+   ============================================================ */
+.app{
+  max-width:480px;
+  margin:0 auto;
+  padding:calc(10px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+  display:flex;
+  flex-direction:column;
+  gap:var(--gap);
+}
+.stage{display:flex;flex-direction:column;gap:var(--gap)}
+
+/* ---- 顶栏 ---- */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 2px}
+.topbar__label{display:block;font-size:11px;letter-spacing:.08em;color:var(--t3);margin-bottom:1px}
+.topbar__no{margin:0;font-size:15px;font-weight:500;letter-spacing:.03em;color:var(--t2);font-variant-numeric:tabular-nums}
+
+.icon-btn{
+  flex:0 0 auto;width:44px;height:44px;display:grid;place-items:center;
+  background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:14px;
+  color:var(--t2);cursor:pointer;
+  transition:background .18s var(--ease),color .18s,transform .18s var(--ease);
+}
+.icon-btn:hover{color:var(--t1);background:rgba(255,255,255,.08)}
+.icon-btn:active{transform:scale(.93)}
+.icon-btn:disabled{cursor:default;opacity:.6}
+.icon-btn .ico{display:block}
+.icon-btn.is-busy .ico{animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---- 卡片 ---- */
+.card{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:var(--r-card);
+  padding:var(--pad);
+}
+
+/* ============================================================
+   3. 首屏英雄区：剩余流量（视觉重心 56px）
+   ============================================================ */
+.hero{
+  background:
+    linear-gradient(180deg, rgba(52,224,161,.055), rgba(52,224,161,0) 55%),
+    var(--card);
+  padding:14px var(--pad) 0;
+}
+.hero__top{display:flex;align-items:center;gap:10px}
+.hero__left{flex:1 1 auto;min-width:0;padding-bottom:14px}
+.hero__cap{font-size:12px;color:var(--t2);letter-spacing:.02em}
+.hero__figure{display:flex;align-items:baseline;gap:6px;margin-top:5px}
+.hero__num{
+  font-size:clamp(38px,13.2vw,54px);
+  font-weight:600;
+  line-height:1;
+  letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums;
+}
+.hero__unit{font-size:15px;font-weight:500;color:var(--t3)}
+
+/* 进度环 */
+.ring{position:relative;flex:0 0 auto;width:104px;height:104px}
+.ring svg{display:block;width:100%;height:100%;transform:rotate(-90deg)}
+.ring__track{fill:none;stroke:rgba(255,255,255,.07);stroke-width:9}
+.ring__bar{fill:none;stroke:var(--accent);stroke-width:9;stroke-linecap:round;transition:stroke-dashoffset .9s var(--ease)}
+.ring__mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.ring__pct{font-size:21px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
+.ring__pct span{font-size:11px;font-weight:500;color:var(--t2);margin-left:1px}
+.ring__cap{font-size:10px;color:var(--t3)}
+
+/* 底部双栏数据 */
+.hero__stats{
+  display:flex;
+  margin:0 calc(-1 * var(--pad));
+  padding:12px var(--pad);
+  border-top:1px solid var(--line);
+}
+.stat{flex:1 1 0;min-width:0}
+.stat + .stat{padding-left:16px;border-left:1px solid var(--line)}
+.stat__k{display:block;font-size:11px;color:var(--t3);margin-bottom:3px}
+.stat__v{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.stat > small{font-size:11px;font-weight:500;color:var(--t3);margin-left:3px;letter-spacing:0;vertical-align:baseline}
+
+/* ============================================================
+   4. 卡片 · 套餐信息
+   ============================================================ */
+.info__name{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding-bottom:12px;border-bottom:1px solid var(--line);
+}
+.k{font-size:11px;color:var(--t3);letter-spacing:.02em}
+.v{font-size:14px;font-weight:500;color:var(--t1)}
+.info__name .v{text-align:right;font-size:15px;letter-spacing:.01em}
+.info__grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.cell .k{display:block;margin-bottom:3px}
+.cell .v{font-variant-numeric:tabular-nums}
+.v--accent{color:var(--accent)}
+
+.pill{
+  display:inline-flex;align-items:center;gap:5px;
+  height:22px;padding:0 9px;border-radius:999px;
+  font-size:11.5px;font-weight:500;letter-spacing:.01em;
+}
+.pill::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+.pill--ok{color:var(--accent);background:var(--accent-weak)}
+.pill--warn{color:var(--warn);background:rgba(245,165,36,.13)}
+.pill--danger{color:var(--danger);background:rgba(255,107,107,.13)}
+
+/* ============================================================
+   5. 卡片 · 近 7 天柱状图（纯 CSS，无依赖）
+   ============================================================ */
+.card__head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.card__title{margin:0;font-size:14px;font-weight:600;letter-spacing:.01em}
+.card__meta{font-size:11px;color:var(--t3);font-variant-numeric:tabular-nums}
+
+.bars{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:14px;align-items:end}
+.bar{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+.bar__v{font-size:10px;line-height:1;color:var(--t3);font-variant-numeric:tabular-nums}
+.bar__col{width:100%;height:76px;display:flex;align-items:flex-end;justify-content:center}
+.bar__fill{
+  width:min(100%,22px);
+  border-radius:5px 5px 2px 2px;
+  background:rgba(255,255,255,.17);
+  transition:height .6s var(--ease);
+}
+.bar__d{font-size:10.5px;line-height:1;color:var(--t3);white-space:nowrap}
+.bar--today .bar__v{color:var(--accent);font-weight:500}
+.bar--today .bar__fill{background:linear-gradient(180deg,#3FEBAE,#2BC98F)}
+.bar--today .bar__d{color:var(--t2)}
+
+/* ============================================================
+   6. 页脚 / 按钮
+   ============================================================ */
+.foot{padding:2px 4px 0}
+.foot__row{display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:10px}
+.live{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(52,224,161,.12);
+  animation:breathe 2.4s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:.45}}
+.foot__time{margin:0;font-size:12px;color:var(--t3);font-variant-numeric:tabular-nums}
+.foot__note{margin:0 0 10px;font-size:11.5px;line-height:1.6;color:var(--t3);text-align:center}
+
+.btn{
+  width:100%;height:48px;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  border-radius:15px;border:1px solid var(--line-2);
+  background:rgba(255,255,255,.055);
+  color:var(--t1);font-size:15px;font-weight:500;
+  cursor:pointer;transition:background .18s,transform .16s var(--ease),opacity .18s;
+}
+.btn:active{transform:scale(.985);background:rgba(255,255,255,.09)}
+.btn:disabled{opacity:.55;cursor:default}
+.btn--primary{background:var(--accent);border-color:transparent;color:#04231A;font-weight:600}
+.btn--primary:active{background:#2BD093}
+
+/* ============================================================
+   7. 状态一：加载中（骨架屏）
+   ============================================================ */
+.skel{
+  background:linear-gradient(90deg,rgba(255,255,255,.05) 25%,rgba(255,255,255,.10) 37%,rgba(255,255,255,.05) 63%);
+  background-size:400% 100%;
+  border-radius:7px;
+  animation:shimmer 1.5s ease infinite;
+}
+@keyframes shimmer{from{background-position:100% 0}to{background-position:0 0}}
+.skel--cap{width:64px;height:11px;margin:2px 0 10px}
+.skel--num{width:150px;height:40px;border-radius:10px}
+.skel--k{width:44px;height:9px;margin-bottom:8px;border-radius:4px}
+.skel--v{width:76px;height:15px}
+.skel--row{width:100%;height:15px;margin-bottom:18px}
+.skel--title{width:80px;height:12px}
+.ring--sk{border:9px solid rgba(255,255,255,.05);border-radius:50%;background:none}
+
+.bars--sk{height:76px}
+.bars--sk i{display:block;width:min(100%,22px);margin:0 auto;border-radius:5px;background:rgba(255,255,255,.06)}
+.bars--sk i.skel{animation:shimmer 1.5s ease infinite}
+
+.loading-hint{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  margin:4px 0 0;font-size:12px;color:var(--t3);
+}
+.spinner{
+  width:12px;height:12px;flex:0 0 auto;border-radius:50%;
+  border:2px solid rgba(255,255,255,.18);border-top-color:var(--accent);
+  animation:spin .8s linear infinite;
+}
+
+/* ============================================================
+   8. 状态二：抓取失败
+   ============================================================ */
+.err{text-align:center;padding:26px 20px 22px}
+.err__ico{
+  width:46px;height:46px;margin:0 auto 14px;border-radius:15px;
+  display:grid;place-items:center;
+  background:rgba(255,107,107,.13);color:var(--danger);
+}
+.err__title{margin:0 0 6px;font-size:17px;font-weight:600;letter-spacing:.01em}
+.err__msg{margin:0 auto;max-width:100%;font-size:13px;line-height:1.6;color:var(--t2);text-wrap:pretty}
+.err__last{margin:14px 0 0;font-size:12px;color:var(--t3);font-variant-numeric:tabular-nums}
+.err .btn{margin-top:16px}
+.err__hint{margin:2px 0 0;padding:0 8px;font-size:11.5px;line-height:1.6;color:var(--t3);text-align:center}
+
+/* ============================================================
+   9. 小屏适配（320 宽）与动效偏好
+   ============================================================ */
+@media (max-width:340px){
+  :root{--pad:16px}
+  .app{padding-left:14px;padding-right:14px}
+  .ring{width:88px;height:88px}
+  .ring__pct{font-size:18px}
+  .hero__num{font-size:38px}
+  .bar__col{height:72px}
+  .bars--sk{height:72px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
+}
+</style>
+</head>
+<body>
+
+<main class="app" id="app" data-state="loading">
+
+  <!-- 顶栏：卡号 + 刷新（常驻，三态通用） -->
+  <header class="topbar">
+    <div>
+      <span class="topbar__label">物联网卡</span>
+      <h1 class="topbar__no" id="cardNo">90154379</h1>
+    </div>
+    <button class="icon-btn" id="btnRefresh" type="button" aria-label="刷新流量数据">
+      <svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1" />
+        <path d="M20.5 4.3V10h-5.7" />
+      </svg>
+    </button>
+  </header>
+
+  <p class="sr-only" id="live" role="status" aria-live="polite"></p>
+
+  <!-- ============ 状态一：加载中 ============ -->
+  <section class="stage" id="stageLoading">
+    <div class="card hero">
+      <div class="hero__top">
+        <div class="hero__left">
+          <div class="skel skel--cap"></div>
+          <div class="skel skel--num"></div>
+        </div>
+        <div class="ring ring--sk" aria-hidden="true"></div>
+      </div>
+      <div class="hero__stats">
+        <div class="stat"><div class="skel skel--k"></div><div class="skel skel--v"></div></div>
+        <div class="stat"><div class="skel skel--k"></div><div class="skel skel--v"></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="skel skel--row"></div>
+      <div class="info__grid">
+        <div class="cell"><div class="skel skel--k"></div><div class="skel skel--v"></div></div>
+        <div class="cell"><div class="skel skel--k"></div><div class="skel skel--v"></div></div>
+        <div class="cell"><div class="skel skel--k"></div><div class="skel skel--v"></div></div>
+        <div class="cell"><div class="skel skel--k"></div><div class="skel skel--v"></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="skel skel--title"></div>
+      <div class="bars bars--sk" aria-hidden="true">
+        <i class="skel" style="height:52%"></i>
+        <i class="skel" style="height:68%"></i>
+        <i class="skel" style="height:41%"></i>
+        <i class="skel" style="height:60%"></i>
+        <i class="skel" style="height:92%"></i>
+        <i class="skel" style="height:55%"></i>
+        <i class="skel" style="height:28%"></i>
+      </div>
+    </div>
+
+    <p class="loading-hint"><span class="spinner" aria-hidden="true"></span>正在获取最新流量数据…</p>
+  </section>
+
+  <!-- ============ 状态二：正常显示 ============ -->
+  <section class="stage" id="stageOk" hidden>
+
+    <div class="card hero">
+      <div class="hero__top">
+        <div class="hero__left">
+          <div class="hero__cap">剩余流量</div>
+          <div class="hero__figure">
+            <span class="hero__num" id="remain">12.34</span>
+            <span class="hero__unit">GB</span>
+          </div>
+        </div>
+
+        <div class="ring" id="ring" role="img" aria-label="已用流量占比">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="ring__track" cx="60" cy="60" r="52"></circle>
+            <circle class="ring__bar" id="ringBar" cx="60" cy="60" r="52"
+                    stroke-dasharray="326.73" stroke-dashoffset="326.73"></circle>
+          </svg>
+          <div class="ring__mid">
+            <div class="ring__pct" id="ringPct">0<span>%</span></div>
+            <div class="ring__cap">已用</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero__stats">
+        <div class="stat">
+          <span class="stat__k">总流量</span>
+          <span class="stat__v" id="total">30</span><small>GB</small>
+        </div>
+        <div class="stat">
+          <span class="stat__k">已用流量</span>
+          <span class="stat__v" id="used">17.66</span><small>GB</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="info__name">
+        <span class="k" id="planLabel">套餐</span>
+        <span class="v" id="planName">移动物联卡 30G·年包</span>
+      </div>
+      <div class="info__grid">
+        <div class="cell"><span class="k">运营商</span><span class="v" id="operator">中国移动</span></div>
+        <div class="cell"><span class="k">到期日</span><span class="v" id="expireDate">2026-11-30</span></div>
+        <div class="cell"><span class="k">剩余天数</span><span class="v v--accent" id="daysLeft">27 天</span></div>
+        <div class="cell"><span class="k">卡状态</span><span class="pill pill--ok" id="statusPill">正常</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__head">
+        <h2 class="card__title">近 7 天用量</h2>
+        <span class="card__meta" id="sum7">合计 17.66 GB</span>
+      </div>
+      <div class="bars" id="bars" role="img" aria-label="近七天每日用量柱状图"></div>
+    </div>
+
+    <footer class="foot">
+      <div class="foot__row">
+        <span class="live" aria-hidden="true"></span>
+        <p class="foot__time">更新于 <time id="updatedAt">今天 14:32</time></p>
+      </div>
+      <p class="foot__note">服务端定时自动抓取，非实时数据</p>
+      <button class="btn" id="btnRefresh2" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1" />
+          <path d="M20.5 4.3V10h-5.7" />
+        </svg>
+        手动刷新
+      </button>
+    </footer>
+  </section>
+
+  <!-- ============ 状态三：抓取失败 ============ -->
+  <section class="stage" id="stageError" hidden>
+    <div class="card err">
+      <div class="err__ico" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round">
+          <path d="M12 7.5v6" />
+          <path d="M12 17v.01" />
+        </svg>
+      </div>
+      <h2 class="err__title">获取流量数据失败</h2>
+      <p class="err__msg" id="errMsg">运营商接口响应超时（504），已自动重试 2 次</p>
+      <p class="err__last" id="errLast" hidden></p>
+      <button class="btn btn--primary" id="btnRetry" type="button">重新获取</button>
+    </div>
+    <p class="err__hint">如果多次失败，可能是运营商查询接口有变动，需要检查后端抓取脚本</p>
+  </section>
+
+</main>
+
+<noscript>
+  <p style="padding:0 20px;color:#A9B4C4;font-size:13px">请开启 JavaScript 以查看流量数据。</p>
+</noscript>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var app = $('#app');
+  var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  var params = new URLSearchParams(location.search);
+
+  /* ==========================================================
+     A. 数据接入层 —— 接后端时只改 fetchFlow() 这一个函数
+     ==========================================================
+     后端应返回的 JSON（字段名可改，改完同步改 render() 里的取值即可）：
+
+     {
+       "cardNo":     "90154379",
+       "operator":   "中国移动",
+       "plan":       "移动物联卡 30G·年包",
+       "totalMB":    30720,               // 套餐总量（MB）
+       "usedMB":     18083,               // 已用（MB）
+       "expireDate": "2026-11-30",        // YYYY-MM-DD
+       "status":     "active",            // active | suspended | cancelled
+       "dailyMB": [                       // 最近 7 天，按日期升序，最后一项是今天
+         { "date": "2026-10-28", "mb": 2365 },
+         ...
+         { "date": "2026-11-03", "mb": 1290 }
+       ],
+       "updatedAt":  "2026-11-03T14:32:00+08:00"   // 后端抓取成功的时间
+     }
+     ========================================================== */
+
+  function mockData() {
+    var now = new Date();
+    var pad2 = function (n) { return (n < 10 ? '0' : '') + n; };
+    var iso = function (d) {
+      return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+    };
+    var series = [2365, 3092, 1884, 2724, 4219, 2509, 1290]; // 与 usedMB 大致自洽
+    var dailyMB = series.map(function (mb, i) {
+      var d = new Date(now);
+      d.setDate(d.getDate() - (series.length - 1 - i));
+      return { date: iso(d), mb: mb };
+    });
+    var expire = new Date(now);
+    expire.setDate(expire.getDate() + 27);
+
+    return {
+      cardNo: '90154379',
+      operator: '中国移动',
+      plan: '移动物联卡 30G·年包',
+      totalMB: 30720,
+      usedMB: 18083,
+      expireDate: iso(expire),
+      status: 'active',
+      dailyMB: dailyMB,
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  function fetchFlow() {
+    /* ---- 真实数据：本地服务 /api/flow；无服务又直接双击打开时回退演示 ---- */
+    if (!params.get('demo')) {
+      return fetch('/api/flow' + (params.get('refresh') ? '?refresh=1' : ''), { cache: 'no-store' })
+        .then(function (res) {
+          return res.json().then(function (j) {
+            if (!res.ok) throw new Error((j && j.error && j.error.message) || ('接口 HTTP ' + res.status));
+            return j;
+          });
+        })
+        .catch(function (err) {
+          if (location.protocol === 'file:') return demoFlow();
+          throw err;
+        });
+    }
+    return demoFlow();
+  }
+
+  function demoFlow() {
+    /* ---- ↓↓↓ 演示：假数据 + 900ms 延迟 ---- */
+    return sleep(900).then(function () {
+      if (params.get('state') === 'error') {
+        throw new Error('运营商接口响应超时（504），已自动重试 2 次');
+      }
+      var d = mockData();
+      // 演示用：?status=suspended / cancelled 可以预览其它卡状态
+      if (params.get('status')) d.status = params.get('status');
+      return d;
+    });
+  }
+
+  /* ==========================================================
+     B. 格式化工具
+     ========================================================== */
+  var WD = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+  function gb(mb) {                       // 30720 -> "30"，18083 -> "17.66"
+    var v = mb / 1024;
+    return (Math.round(v * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
+  }
+  function gb1(mb) {                      // 柱状图标签用一位小数
+    return (Math.round(mb / 1024 * 10) / 10).toFixed(1);
+  }
+  function fmtTime(isoStr) {
+    var d = new Date(isoStr);
+    var now = new Date();
+    var hm = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+    if (d.toDateString() === now.toDateString()) return '今天 ' + hm;
+    return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + hm;
+  }
+  function dayLabel(dateStr, isLast) {
+    if (isLast) return '今天';
+    return WD[new Date(dateStr + 'T00:00:00').getDay()];
+  }
+  function daysUntil(dateStr) {
+    var end = new Date(dateStr + 'T00:00:00');
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.ceil((end - today) / 86400000);
+  }
+
+  var STATUS = {
+    active:    { text: '正常', cls: 'pill--ok' },
+    suspended: { text: '停机', cls: 'pill--warn' },
+    cancelled: { text: '注销', cls: 'pill--danger' }
+  };
+
+  /* ==========================================================
+     C. 渲染
+     ========================================================== */
+  var RING_R = 52;
+  var RING_C = 2 * Math.PI * RING_R;
+  var lastOkAt = null;
+
+  function render(d) {
+    var totalGB = d.totalMB / 1024;
+    var usedGB = d.usedMB / 1024;
+    var remainGB = Math.max(0, totalGB - usedGB);
+    var usedPct = totalGB > 0 ? Math.min(100, Math.max(0, usedGB / totalGB * 100)) : 0;
+
+    // 顶栏 / 首屏
+    $('#cardNo').textContent = d.cardNo;
+    $('#remain').textContent = gb(remainGB * 1024);
+    $('#total').textContent = gb(d.totalMB);
+    $('#used').textContent = gb(d.usedMB);
+
+    // 进度环
+    var ringBar = $('#ringBar');
+    ringBar.style.strokeDasharray = RING_C.toFixed(2);
+    ringBar.style.strokeDashoffset = (RING_C * (1 - usedPct / 100)).toFixed(2);
+    $('#ringPct').innerHTML = Math.round(usedPct) + '<span>%</span>';
+    $('#ring').setAttribute('aria-label',
+      '已用 ' + usedPct.toFixed(1) + '%，剩余 ' + (100 - usedPct).toFixed(1) + '%');
+
+    // 套餐（平台不返回套餐名时，这一行改显示 ICCID）
+    if (d.plan) {
+      $('#planLabel').textContent = '套餐';
+      $('#planName').textContent = d.plan;
+    } else if (d.iccid) {
+      $('#planLabel').textContent = 'ICCID';
+      $('#planName').textContent = d.iccid;
+    } else {
+      $('#planLabel').textContent = '';
+    }
+    $('#operator').textContent = d.operator;
+    $('#expireDate').textContent = d.expireDate;
+    var left = daysUntil(d.expireDate);
+    $('#daysLeft').textContent = left > 0 ? left + ' 天' : (left === 0 ? '今天到期' : '已过期');
+
+    var st = STATUS[d.status] || STATUS.active;
+    var pill = $('#statusPill');
+    pill.textContent = st.text;
+    pill.className = 'pill ' + st.cls;
+
+    // 近 7 天柱状图
+    var list = d.dailyMB || [];
+    var max = Math.max.apply(null, list.map(function (x) { return x.mb; }).concat([1]));
+    var bars = $('#bars');
+    bars.innerHTML = '';
+    list.forEach(function (it, i) {
+      var isLast = i === list.length - 1;
+      var h = Math.max(6, Math.round(it.mb / max * 100));
+      var el = document.createElement('div');
+      el.className = 'bar' + (isLast ? ' bar--today' : '');
+      el.title = it.date + ' · ' + gb(it.mb) + ' GB';
+      el.innerHTML =
+        '<span class="bar__v">' + gb1(it.mb) + '</span>' +
+        '<span class="bar__col"><i class="bar__fill" style="height:' + h + '%"></i></span>' +
+        '<span class="bar__d">' + dayLabel(it.date, isLast) + '</span>';
+      bars.appendChild(el);
+    });
+    var sum = list.reduce(function (a, b) { return a + b.mb; }, 0);
+    $('#sum7').textContent = '合计 ' + gb(sum) + ' GB';
+
+    // 更新时间
+    $('#updatedAt').textContent = fmtTime(d.updatedAt);
+    lastOkAt = d.updatedAt;
+  }
+
+  /* ==========================================================
+     D. 三态切换 + 交互
+     ========================================================== */
+  var stageLoading = $('#stageLoading');
+  var stageOk = $('#stageOk');
+  var stageError = $('#stageError');
+  var btnRefresh = $('#btnRefresh');
+  var btnRefresh2 = $('#btnRefresh2');
+  var loading = false;
+
+  function setState(next) {
+    app.dataset.state = next;
+    stageLoading.hidden = next !== 'loading';
+    stageOk.hidden = next !== 'ok';
+    stageError.hidden = next !== 'error';
+
+    var busy = next === 'loading';
+    btnRefresh.classList.toggle('is-busy', busy);
+    btnRefresh.disabled = busy;
+    btnRefresh2.disabled = busy;
+    if (busy) btnRefresh.setAttribute('aria-label', '正在刷新');
+
+    $('#live').textContent = next === 'loading' ? '正在获取流量数据'
+      : next === 'ok' ? '流量数据已更新'
+      : '获取流量数据失败，可点击重新获取';
+  }
+
+  function load() {
+    if (loading) return;
+    loading = true;
+    setState('loading');
+    fetchFlow().then(function (d) {
+      render(d);
+      setState('ok');
+    }).catch(function (err) {
+      $('#errMsg').textContent = err && err.message ? err.message : '未知错误';
+      var last = $('#errLast');
+      if (lastOkAt) {
+        last.hidden = false;
+        last.textContent = '上次成功更新 ' + fmtTime(lastOkAt);
+      } else {
+        last.hidden = true;
+      }
+      setState('error');
+    }).then(function () {
+      loading = false;
+      btnRefresh.setAttribute('aria-label', '刷新流量数据');
+    });
+  }
+
+  btnRefresh.addEventListener('click', load);
+  btnRefresh2.addEventListener('click', load);
+  $('#btnRetry').addEventListener('click', load);
+
+  /* 页面常开时：每 5 分钟静默刷新 + 切回前台时刷新（不闪 loading 骨架） */
+  function silentRefresh() {
+    if (loading || document.hidden) return;
+    fetchFlow().then(function (d) { render(d); setState('ok'); }).catch(function () {});
+  }
+  setInterval(silentRefresh, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) silentRefresh(); });
+
+  load();
+})();
+</script>
+</body>
+</html>
